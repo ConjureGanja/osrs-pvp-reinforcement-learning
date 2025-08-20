@@ -377,21 +377,46 @@ class PvpEnv(AsyncIoEnv[NDArray[np.float32], NDArray[np.int32]]):
             self._closed = True
             logger.debug(f"Closing environment: {self._env_id}")
 
-            # Closing is a bit of a hack.
-            # We create a new connection so that it doesn't conflict with an existing active request
-            # then logout, and close both connections. This will cause an active request in the main connection to end.
-            # This also makes sure it logs out even if the socket had disconnected.
-            tmp = self._remote_env_connector
-            self._remote_env_connector = RemoteEnvConnector(
-                env_id=self._env_id,
-                port=self._remote_environment_port,
-                host=self._remote_environment_host,
-            )
-            try:
-                await self.__logout()
-            finally:
-                await self._remote_env_connector.close()
-                await tmp.close()
+            # Create a clean shutdown sequence to avoid connection conflicts
+            # First, attempt to logout gracefully through existing connection
+            # If that fails, create a new connection to ensure cleanup
+            existing_connector = self._remote_env_connector
+            logout_successful = False
+            
+            # Try to logout with existing connection first
+            if existing_connector:
+                try:
+                    await self.__logout()
+                    logout_successful = True
+                    logger.debug(f"Successfully logged out via existing connection: {self._env_id}")
+                except Exception as e:
+                    logger.debug(f"Logout failed via existing connection: {e}")
+            
+            # If logout failed or no existing connection, use fallback cleanup
+            if not logout_successful:
+                logger.debug(f"Using fallback cleanup connection for: {self._env_id}")
+                fallback_connector = RemoteEnvConnector(
+                    env_id=self._env_id,
+                    port=self._remote_environment_port,
+                    host=self._remote_environment_host,
+                )
+                self._remote_env_connector = fallback_connector
+                try:
+                    await self.__logout()
+                    logger.debug(f"Fallback logout successful: {self._env_id}")
+                except Exception as e:
+                    logger.warning(f"Fallback logout also failed: {e}")
+                finally:
+                    await fallback_connector.close()
+            
+            # Always clean up the original connection
+            if existing_connector:
+                try:
+                    await existing_connector.close()
+                except Exception as e:
+                    logger.debug(f"Error closing existing connection: {e}")
+                    
+            self._remote_env_connector = None
 
     def is_closed(self) -> bool:
         return self._closed
