@@ -144,25 +144,40 @@ class TaskParser:
         """Extract task objectives from description."""
         objectives = []
         
-        # Look for quantity patterns like "kill 10 goblins"
+        # Look for quantity patterns like "kill 10 goblins", "mine 50 ore", "level 60"
         quantity_patterns = [
-            r'(kill|mine|cut|cook|craft|make|get|obtain)\s+(\d+)\s+([a-z\s]+)',
-            r'(\d+)\s+([a-z\s]+)\s+(killed|mined|cut|cooked|crafted|made)'
+            r'(kill|mine|cut|cook|craft|make|get|obtain)\s+(\d+)\s+([a-z\s]+?)(?:\s+(?:and|or|,|by|in|for|to)|$)',
+            r'(\d+)\s+([a-z\s]+?)\s+(killed|mined|cut|cooked|crafted|made)(?:\s|$)',
+            r'(?:level|reach level)\s+(\d+)(?:\s+([a-z]+))?'
         ]
         
+        found_objectives = False
         for pattern in quantity_patterns:
             matches = re.findall(pattern, description)
             for match in matches:
-                if len(match) == 3:
-                    action, quantity, target = match
-                    objectives.append(TaskObjective(
-                        description=f"{action} {quantity} {target}".strip(),
-                        target=target.strip(),
-                        quantity=int(quantity)
-                    ))
+                try:
+                    if len(match) == 3 and match[1].isdigit():
+                        action, quantity, target = match
+                        objectives.append(TaskObjective(
+                            description=f"{action} {quantity} {target}".strip(),
+                            target=target.strip(),
+                            quantity=int(quantity)
+                        ))
+                        found_objectives = True
+                    elif len(match) == 2 and match[0].isdigit():
+                        # Handle "level 60" patterns
+                        quantity, target = match
+                        objectives.append(TaskObjective(
+                            description=f"reach level {quantity}" + (f" {target}" if target else ""),
+                            target=target.strip() if target else "skill",
+                            quantity=int(quantity)
+                        ))
+                        found_objectives = True
+                except (ValueError, IndexError):
+                    continue  # Skip invalid matches
         
         # If no specific objectives found, create a general one
-        if not objectives:
+        if not found_objectives:
             objectives.append(TaskObjective(
                 description=description,
                 target="general",

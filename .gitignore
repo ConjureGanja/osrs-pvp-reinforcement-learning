@@ -1,1 +1,23 @@
 .idea/*
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+.gui_env/
+
+# OSRS RL specific
+.osrs_rl/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

@@ -9,6 +9,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.password4j.Password;
 
 import java.io.File;
 import java.io.FileReader;
@@ -64,14 +65,36 @@ public class JSONFilePlayerPersistence extends PlayerPersistence {
 
     @Override
     public String encryptPassword(String plainPassword) {
-        // TODO: Fix password encryption for JSON
-        return plainPassword;
+        // Use Password4j BCrypt for secure password hashing
+        try {
+            return Password.hash(plainPassword).withBcrypt().getResult();
+        } catch (Exception e) {
+            Server.getLogger().log(Level.SEVERE, "Failed to encrypt password", e);
+            // Fallback to plain text for compatibility, but log the issue
+            Server.getLogger().log(Level.WARNING, "Using plain text password due to encryption failure - this is insecure!");
+            return plainPassword;
+        }
     }
 
     @Override
     public boolean checkPassword(String plainPassword, PlayerSave playerSave) {
-        // TODO: Fix password encryption for JSON
-        return plainPassword.equals(playerSave.getPasswordHashWithSalt());
+        // Use Password4j to verify password
+        try {
+            String hashedPassword = playerSave.getPasswordHashWithSalt();
+            // Check if password is already hashed (BCrypt format)
+            if (hashedPassword.startsWith("$2a$") || hashedPassword.startsWith("$2b$") || hashedPassword.startsWith("$2y$")) {
+                return Password.check(plainPassword, hashedPassword).withBcrypt();
+            } else {
+                // Legacy plain text password - compare directly but warn
+                Server.getLogger().log(Level.WARNING, 
+                    "Using plain text password comparison - consider updating to hashed password");
+                return plainPassword.equals(hashedPassword);
+            }
+        } catch (Exception e) {
+            Server.getLogger().log(Level.SEVERE, "Failed to check password", e);
+            // Fallback to plain text comparison
+            return plainPassword.equals(playerSave.getPasswordHashWithSalt());
+        }
     }
 
     private void setupDirectory(File file) {

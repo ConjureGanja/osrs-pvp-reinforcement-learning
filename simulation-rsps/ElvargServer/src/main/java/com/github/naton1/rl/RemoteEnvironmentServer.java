@@ -186,8 +186,9 @@ public class RemoteEnvironmentServer {
             }
         });
         if (EnvConfig.isSyncEnabled()) {
-            // Return early so nothing gets stuck
-            // kind of a hack so that closing eval/old selfs/main bots sequentially doesn't deadlock
+            // For synchronized environments, complete immediately to prevent deadlocks
+            // during sequential shutdown of evaluation/self-play/main bots.
+            // The background logout will still proceed asynchronously.
             future.complete(null);
         }
         return future;
