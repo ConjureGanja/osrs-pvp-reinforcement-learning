@@ -1,4 +1,7 @@
 import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -28,6 +31,15 @@ import os
 import subprocess
 import json
 import yaml
+import logging
+
+# Import our new modular components
+from core.credentials_tab import CredentialsTab
+from core.task_tab import TaskManagementTab
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -194,37 +206,14 @@ class MainWindow(QMainWindow):
         self.admin_tab_layout = QVBoxLayout(self.admin_tab)
         self.admin_tab_layout.addWidget(QLabel("Admin content will go here."))
 
-        # Bot Credentials Tab
-        self.bot_credentials_tab = QWidget()
-        tab_widget.addTab(self.bot_credentials_tab, "Bot Credentials")
-        bot_creds_main_layout = QVBoxLayout(self.bot_credentials_tab)
+        # Task Management Tab (New!)
+        self.task_tab = TaskManagementTab()
+        self.task_tab.task_selected_for_training.connect(self.on_task_selected_for_training)
+        tab_widget.addTab(self.task_tab, "Task Management")
 
-        creds_groupbox = QGroupBox("OSRS Bot Account Credentials (for Simulation Server)")
-        form_layout = QFormLayout()
-
-        self.bot_username_line_edit = QLineEdit()
-        self.bot_password_line_edit = QLineEdit()
-        self.bot_password_line_edit.setEchoMode(QLineEdit.Password)
-
-        form_layout.addRow(QLabel("Username:"), self.bot_username_line_edit)
-        form_layout.addRow(QLabel("Password:"), self.bot_password_line_edit)
-        creds_groupbox.setLayout(form_layout)
-        bot_creds_main_layout.addWidget(creds_groupbox)
-
-        warning_label = QLabel("<b>Warning:</b> Credentials are currently saved in plain text. Secure storage will be implemented in a future update.")
-        warning_label.setStyleSheet("QLabel { color : red; }") # Make it red
-        warning_label.setWordWrap(True)
-        bot_creds_main_layout.addWidget(warning_label)
-
-        self.save_bot_credentials_button = QPushButton("Save Credentials")
-        self.save_bot_credentials_button.clicked.connect(self.save_bot_credentials)
-        bot_creds_main_layout.addWidget(self.save_bot_credentials_button)
-
-        bot_creds_main_layout.addStretch(1) # Push content to the top
-
-        # Load saved bot credentials
-        self.bot_username_line_edit.setText(self.settings.value("botUsername", ""))
-        self.bot_password_line_edit.setText(self.settings.value("botPassword", ""))
+        # Bot Credentials Tab (Secure)
+        self.credentials_tab = CredentialsTab()
+        tab_widget.addTab(self.credentials_tab, "Bot Credentials")
 
 
     def browse_repo_path(self):
@@ -985,15 +974,22 @@ class MainWindow(QMainWindow):
             self.tensorboard_process = None
         # self.launch_tensorboard_button.setEnabled(True) # Re-enable button
 
-    def save_bot_credentials(self):
-        username = self.bot_username_line_edit.text()
-        password = self.bot_password_line_edit.text()
-
-        self.settings.setValue("botUsername", username)
-        self.settings.setValue("botPassword", password) # Plain text storage
-
-        QMessageBox.information(self, "Credentials Saved", "Bot credentials have been saved locally (in plain text).")
-        self._append_feedback("Bot credentials saved (plain text).") # Log to main feedback for now
+    def on_task_selected_for_training(self, env_config):
+        """Handle when a task is selected for training."""
+        logger.info("Task selected for training - creating custom environment configuration")
+        
+        # This could be enhanced to automatically set up training configuration
+        # For now, just show a message with the environment info
+        task_name = env_config.get('name', 'Unknown Task')
+        QMessageBox.information(
+            self,
+            "Task Environment Created",
+            f"Environment configuration created for: {task_name}\n\n"
+            f"You can now use this configuration in the Training tab.\n"
+            f"The environment has been customized for this specific task."
+        )
+        
+        # TODO: Could automatically create/update training config files here
 
 
 if __name__ == "__main__":
