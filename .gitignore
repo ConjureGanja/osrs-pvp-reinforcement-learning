@@ -1,1 +1,21 @@
 .idea/*
+
+# Setup and GUI temporary files
+/pvp-ml/env/
+/pvp-ml/environment_temp.yml
+*.log
+
+# Python cache and temp files
+__pycache__/
+*.pyc
+*.pyo
+.Python
+build/
+dist/
+*.egg-info/
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+*~
