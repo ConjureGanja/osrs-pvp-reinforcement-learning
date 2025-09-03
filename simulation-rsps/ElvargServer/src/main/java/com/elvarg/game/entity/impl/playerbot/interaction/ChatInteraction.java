@@ -75,9 +75,9 @@ public class ChatInteraction {
                 playerBot.stopCommand();
             }
 
-            // If the player is currently under attack from the Bot, stop combat
-            if(this.playerBot.getCombat().getAttacker() == fromPlayer) {
-                this.playerBot.getCombat().setUnderAttack(null);
+            // If the player is currently being attacked by the Bot, stop combat
+            if(this.playerBot.getCombat().getTarget() == fromPlayer) {
+                this.playerBot.getCombat().setTarget(null);
             }
 
             return;
