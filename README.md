@@ -51,8 +51,48 @@ Evaluation footage:\
 
 # How To Use
 
-1. Clone the repository: `git clone https://github.com/Naton1/osrs-pvp-reinforcement-learning`.
-2. Follow the README in each of the two subprojects to set up each project individually.
+## 🚀 Quick Start (Automated Setup)
+
+**New! Complete automated setup with GUI interface:**
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ConjureGanja/osrs-pvp-reinforcement-learning.git
+   cd osrs-pvp-reinforcement-learning
+   ```
+
+2. **Run automated setup:**
+   ```bash
+   # Linux/macOS
+   ./launch.sh setup
+   
+   # Windows
+   launch.bat setup
+   ```
+
+3. **Launch the GUI:**
+   ```bash
+   # Linux/macOS
+   ./launch.sh gui
+   
+   # Windows  
+   launch.bat gui
+   ```
+
+4. **Open your browser to:** `http://localhost:8080`
+
+The web GUI provides easy access to all features:
+- ✅ Environment setup and validation
+- ✅ Model training with real-time monitoring  
+- ✅ Model evaluation and testing
+- ✅ API server management
+- ✅ Tensorboard integration
+
+📖 **For detailed instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md)**
+
+## 📋 Manual Setup (Advanced Users)
+
+If you prefer manual setup, follow the README in each of the two subprojects to set up each project individually.
 
 By following these steps, you'll be able to set up the environment and start training your own AI agent. You'll also
 be able to serve the pre-trained models via an API.
