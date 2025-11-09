@@ -16,24 +16,40 @@ import argparse
 from pathlib import Path
 from typing import Optional, List
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    print("Installing tqdm...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "tqdm"], check=True)
+    from tqdm import tqdm
+
 
 class SetupManager:
     """Manages the complete setup process for the OSRS PvP RL project."""
-    
-    def __init__(self, root_dir: Path):
+
+    def __init__(self, root_dir: Path, cpu_only: bool = False):
         self.root_dir = root_dir
         self.pvp_ml_dir = root_dir / "pvp-ml"
         self.simulation_dir = root_dir / "simulation-rsps" / "ElvargServer"
         self.env_name = "pvp"
-        
+        self.cpu_only = cpu_only
+        self.steps = [
+            (self.check_prerequisites, "Checking prerequisites"),
+            (self.setup_conda_environment, "Setting up conda environment"),
+            (self.install_pvp_ml, "Installing pvp-ml package"),
+            (self.validate_installation, "Validating installation"),
+            (self.create_launcher_scripts, "Creating launcher scripts"),
+        ]
+
     def log(self, message: str, level: str = "INFO"):
-        """Log a message with timestamp."""
+        """Log a message with a timestamp."""
         timestamp = time.strftime("%H:%M:%S")
         print(f"[{timestamp}] [{level}] {message}")
-        
-    def run_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess:
+
+    def run_command(self, command: List[str], cwd: Optional[Path] = None, check: bool = True, quiet: bool = False) -> subprocess.CompletedProcess:
         """Run a shell command with proper error handling."""
-        self.log(f"Running: {' '.join(command)}")
+        if not quiet:
+            self.log(f"Running: {' '.join(command)}")
         try:
             result = subprocess.run(
                 command,
@@ -42,7 +58,7 @@ class SetupManager:
                 text=True,
                 check=check
             )
-            if result.stdout:
+            if result.stdout and not quiet:
                 self.log(f"Output: {result.stdout.strip()}")
             return result
         except subprocess.CalledProcessError as e:
@@ -50,39 +66,38 @@ class SetupManager:
             if e.stderr:
                 self.log(f"Error: {e.stderr.strip()}", "ERROR")
             raise
-            
+
     def check_prerequisites(self) -> bool:
         """Check if all prerequisites are installed."""
-        self.log("Checking prerequisites...")
+        self.log("Checking for essential tools like conda, Java, and git.")
         
         # Check conda
         try:
-            result = self.run_command(["conda", "--version"])
-            self.log(f"Found conda: {result.stdout.strip()}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            self.log("❌ Conda not found. Please install Miniconda or Anaconda first.", "ERROR")
-            self.log("Download from: https://docs.conda.io/en/latest/miniconda.html")
+            result = self.run_command(["conda", "--version"], quiet=True)
+            self.log(f"✅ Found conda: {result.stdout.strip()}")
+        except FileNotFoundError:
+            self.log("❌ Conda not found. Please install Miniconda or Anaconda.", "ERROR")
+            self.log("   Download from: https://docs.conda.io/en/latest/miniconda.html")
             return False
             
         # Check Java
         try:
-            result = self.run_command(["java", "--version"])
-            self.log(f"Found Java: {result.stdout.strip().split()[1]}")
+            result = self.run_command(["java", "--version"], quiet=True)
+            self.log(f"✅ Found Java: {result.stdout.strip().splitlines()[0]}")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            self.log("❌ Java not found. Java 17 will be installed via conda.", "WARNING")
+            self.log("ℹ️ Java not found. It will be installed automatically via conda.", "INFO")
             
         # Check git
         try:
-            result = self.run_command(["git", "--version"])
-            self.log(f"Found git: {result.stdout.strip()}")
+            result = self.run_command(["git", "--version"], quiet=True)
+            self.log(f"✅ Found git: {result.stdout.strip()}")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            self.log("❌ Git not found. Please install Git first.", "ERROR")
+            self.log("❌ Git not found. Please install Git to proceed.", "ERROR")
             return False
             
-        self.log("✅ Prerequisites check completed")
         return True
         
-    def setup_conda_environment(self, cpu_only: bool = False) -> bool:
+    def setup_conda_environment(self) -> bool:
         """Set up the conda environment for pvp-ml."""
         self.log("Setting up conda environment...")
         
@@ -411,18 +426,34 @@ if "%1"=="gui" (
             return False
             
         self.create_launcher_scripts()
+
+    def run_full_setup(self) -> bool:
+        """Run the complete setup process with a progress bar."""
+        self.log("Starting full setup process...")
         
-        self.log("🎉 Setup completed successfully!")
-        self.log("")
-        self.log("Quick start:")
+        with tqdm(total=len(self.steps), desc="Overall Progress") as pbar:
+            for i, (func, desc) in enumerate(self.steps):
+                pbar.set_description(f"Step {i+1}/{len(self.steps)}: {desc}")
+                try:
+                    if not func():
+                        self.log(f"❌ Step '{desc}' failed. Aborting setup.", "ERROR")
+                        return False
+                except Exception as e:
+                    self.log(f"❌ An unexpected error occurred during '{desc}': {e}", "ERROR")
+                    return False
+                pbar.update(1)
+
+        self.log("🎉 Setup completed successfully!", "INFO")
+        self.log("=" * 60, "INFO")
+        self.log("🚀 Quick Start:", "INFO")
         if platform.system() != "Windows":
-            self.log("  ./launch.sh gui          # Launch GUI")
-            self.log("  ./launch.sh train --help # View training options")
+            self.log("  - To launch the GUI, run: ./launch.sh gui", "INFO")
+            self.log("  - To start training, run: ./launch.sh train --preset fast_nh_general", "INFO")
         else:
-            self.log("  launch.bat gui           # Launch GUI")
-            self.log("  launch.bat train --help  # View training options")
-        self.log("")
-        self.log("For detailed instructions, see SETUP_GUIDE.md")
+            self.log("  - To launch the GUI, run: launch.bat gui", "INFO")
+            self.log("  - To start training, run: launch.bat train --preset fast_nh_general", "INFO")
+        self.log("  - For more commands and details, see SETUP_GUIDE.md", "INFO")
+        self.log("=" * 60, "INFO")
         
         return True
 
@@ -445,16 +476,15 @@ def main():
     
     args = parser.parse_args()
     
-    # Get the root directory (where this script is located)
     root_dir = Path(__file__).parent.absolute()
     
-    setup_manager = SetupManager(root_dir)
+    setup_manager = SetupManager(root_dir, cpu_only=args.cpu_only)
     
     if args.check_only:
         success = setup_manager.check_prerequisites()
         sys.exit(0 if success else 1)
     else:
-        success = setup_manager.run_full_setup(cpu_only=args.cpu_only)
+        success = setup_manager.run_full_setup()
         sys.exit(0 if success else 1)
 
 
