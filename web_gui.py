@@ -50,7 +50,9 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
             self.send_json_response(self.gui_app.get_models())
         elif self.path.startswith('/api/logs/'):
             log_type = self.path.split('/')[-1]
-            self.send_json_response({'logs': self.gui_app.get_logs(log_type)})
+            self.send_json_response(self.gui_app.get_logs(log_type))
+        elif self.path == '/api/check_environment':
+            self.send_json_response(self.gui_app.check_environment())
         else:
             super().do_GET()
     
@@ -166,82 +168,111 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
         <!-- Setup Tab -->
         <div id="setup" class="tab-content active">
             <div class="section">
-                <h3>Environment Status</h3>
+                <h3>1. Environment Validation</h3>
+                <p>This tab checks if your system is correctly configured to run the project. Click the button below to validate your environment.</p>
                 <div id="status-grid" class="status-grid">
                     <div class="status-item" id="conda-status">
                         <h4>Conda Environment</h4>
-                        <div>Status: <span id="conda-status-text">Checking...</span></div>
+                        <p>Checks for the project-specific conda environment.</p>
+                        <div><strong>Status:</strong> <span id="conda-status-text">Not checked</span></div>
                     </div>
                     <div class="status-item" id="python-status">
                         <h4>Python Packages</h4>
-                        <div>Status: <span id="python-status-text">Checking...</span></div>
+                        <p>Verifies that core Python libraries (PyTorch, Ray) are installed.</p>
+                        <div><strong>Status:</strong> <span id="python-status-text">Not checked</span></div>
                     </div>
                     <div class="status-item" id="java-status">
                         <h4>Java Runtime</h4>
-                        <div>Status: <span id="java-status-text">Checking...</span></div>
+                        <p>Ensures Java 17 is installed for the simulation server.</p>
+                        <div><strong>Status:</strong> <span id="java-status-text">Not checked</span></div>
                     </div>
                     <div class="status-item" id="simulation-status">
                         <h4>Simulation Server</h4>
-                        <div>Status: <span id="simulation-status-text">Checking...</span></div>
+                        <p>Confirms the simulation server's build files are present.</p>
+                        <div><strong>Status:</strong> <span id="simulation-status-text">Not checked</span></div>
                     </div>
                 </div>
                 <button class="btn btn-primary" onclick="checkEnvironment()">Check Environment</button>
-                <button class="btn btn-secondary" onclick="openSetupGuide()">Open Setup Guide</button>
+                <button class="btn btn-secondary" onclick="openSetupGuide()">Open Full Setup Guide</button>
+            </div>
+            <div class="section">
+                <h3>Troubleshooting</h3>
+                <p>If any checks fail, please refer to the <strong>SETUP_GUIDE.md</strong> for detailed instructions. The most common fix is to re-run the setup script from your terminal:</p>
+                <pre style="background: #eee; padding: 10px; border-radius: 5px;"><code>python setup.py</code></pre>
             </div>
         </div>
 
         <!-- Training Tab -->
         <div id="training" class="tab-content">
             <div class="section">
-                <h3>Training Configuration</h3>
+                <h3>1. Select Training Preset</h3>
+                <p>Choose a configuration for the training session. 'fast' presets are for testing, while others are for full training runs.</p>
                 <div class="form-group">
                     <label for="preset-select">Training Preset:</label>
                     <select id="preset-select">
                         <option value="">Loading presets...</option>
                     </select>
                 </div>
+            </div>
+            <div class="section">
+                <h3>2. Configure Training Options</h3>
+                <p>For advanced users, enable distributed training to use multiple CPU cores.</p>
                 <div class="form-group">
                     <label>
-                        <input type="checkbox" id="distributed-training"> Distributed Training
+                        <input type="checkbox" id="distributed-training"> Distributed Training (uses all CPU cores)
                     </label>
                 </div>
                 <div class="form-group">
-                    <label for="workers-input">Parallel Workers:</label>
+                    <label for="workers-input">Override Parallel Workers:</label>
                     <input type="text" id="workers-input" value="auto" placeholder="auto or number">
                 </div>
+            </div>
+            <div class="section">
+                <h3>3. Start and Monitor Training</h3>
+                <p>Start the training process and monitor the output in the logs below. You can also use TensorBoard for detailed metrics.</p>
                 <div>
                     <button class="btn btn-success" id="start-training-btn" onclick="startTraining()">Start Training</button>
                     <button class="btn btn-danger" id="stop-training-btn" onclick="stopTraining()" disabled>Stop Training</button>
-                    <button class="btn btn-primary" onclick="openTensorboard()">View Progress</button>
+                    <button class="btn btn-primary" onclick="openTensorboard()">View Progress in TensorBoard</button>
                 </div>
-                <div id="training-status" style="margin-top: 15px; font-weight: bold;"></div>
+                <div id="training-status" style="margin-top: 15px; font-weight: bold;">Status: Not running</div>
             </div>
             <div class="section">
                 <h3>Training Logs</h3>
-                <div id="training-logs" class="logs"></div>
+                <div id="training-logs" class="logs">Waiting for training to start...</div>
             </div>
         </div>
 
         <!-- Evaluation Tab -->
         <div id="evaluation" class="tab-content">
             <div class="section">
-                <h3>Model Selection</h3>
+                <h3>1. Start the Simulation Server</h3>
+                <p>Evaluation requires the simulation server to be running. You can start it from the <strong>Simulation</strong> tab or by using the button below.</p>
+                <button class="btn btn-primary" onclick="startSimulation()">Start Simulation Server</button>
+                 <div id="eval-sim-status" style="margin-top: 10px;">Simulation Status: <span class="process-stopped">Stopped</span></div>
+            </div>
+            <div class="section">
+                <h3>2. Select a Model to Evaluate</h3>
+                <p>Choose a trained model from the list below. New models will appear here after training is complete.</p>
                 <div class="form-group">
                     <label for="model-select">Model:</label>
                     <select id="model-select">
                         <option value="">Loading models...</option>
                     </select>
                 </div>
+            </div>
+            <div class="section">
+                <h3>3. Run Evaluation</h3>
+                <p>Start the evaluation to see how the model performs. The AI will play against itself in the simulation.</p>
                 <div>
                     <button class="btn btn-success" id="start-eval-btn" onclick="startEvaluation()">Start Evaluation</button>
                     <button class="btn btn-danger" id="stop-eval-btn" onclick="stopEvaluation()" disabled>Stop Evaluation</button>
-                    <button class="btn btn-secondary" onclick="startSimulation()">Start Simulation</button>
                 </div>
-                <div id="evaluation-status" style="margin-top: 15px; font-weight: bold;"></div>
+                <div id="evaluation-status" style="margin-top: 15px; font-weight: bold;">Status: Not running</div>
             </div>
             <div class="section">
                 <h3>Evaluation Logs</h3>
-                <div id="evaluation-logs" class="logs"></div>
+                <div id="evaluation-logs" class="logs">Waiting for evaluation to start...</div>
             </div>
         </div>
 
@@ -265,7 +296,8 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
         <!-- API Tab -->
         <div id="api" class="tab-content">
             <div class="section">
-                <h3>API Server Configuration</h3>
+                <h3>Serve Models via API</h3>
+                <p>This tab allows you to expose a trained model through a TCP socket API. This is for advanced use cases where an external application needs to get actions from the model in real-time.</p>
                 <div class="form-group">
                     <label for="api-host">Host:</label>
                     <input type="text" id="api-host" value="127.0.0.1">
@@ -278,28 +310,42 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
                     <button class="btn btn-success" id="start-api-btn" onclick="startApiServer()">Start API Server</button>
                     <button class="btn btn-danger" id="stop-api-btn" onclick="stopApiServer()" disabled>Stop API Server</button>
                 </div>
-                <div id="api-status" style="margin-top: 15px; font-weight: bold;"></div>
+                <div id="api-status" style="margin-top: 15px; font-weight: bold;">Status: Not running</div>
+            </div>
+             <div class="section">
+                <h3>API Logs</h3>
+                <div id="api-logs" class="logs">Waiting for API server to start...</div>
             </div>
         </div>
 
         <!-- Simulation Tab -->
         <div id="simulation" class="tab-content">
             <div class="section">
-                <h3>Simulation Server</h3>
+                <h3>1. Start the Simulation Server</h3>
+                <p>The simulation server is a modified Old School RuneScape private server that the AI interacts with. It's required for both training and evaluation.</p>
                 <div>
                     <button class="btn btn-success" id="start-sim-btn" onclick="startSimulation()">Start Simulation</button>
                     <button class="btn btn-danger" id="stop-sim-btn" onclick="stopSimulation()" disabled>Stop Simulation</button>
                 </div>
-                <div id="sim-status" style="margin-top: 15px; font-weight: bold;"></div>
-                <div style="margin-top: 15px; padding: 15px; background: #e9ecef; border-radius: 5px;">
+                <div id="sim-status" style="margin-top: 15px; font-weight: bold;">Status: Not running</div>
+            </div>
+            <div class="section">
+                <h3>2. (Optional) Connect a Game Client to Watch the AI</h3>
+                <p>You can watch the AI play by connecting a standard OSRS client to the simulation server.</p>
+                <ol>
+                    <li><strong>Clone the client:</strong> <pre><code>git clone https://github.com/RSPSApp/elvarg-rsps.git /tmp/elvarg-client</code></pre></li>
+                    <li><strong>Run the client:</strong> <pre><code>cd /tmp/elvarg-client/ElvargClient && ./gradlew run</code></pre></li>
+                    <li><strong>Connect:</strong> In the client, connect to server address <strong>127.0.0.1</strong> on port <strong>43595</strong>.</li>
+                </ol>
+                 <div style="margin-top: 15px; padding: 15px; background: #e9ecef; border-radius: 5px;">
                     <strong>Connection Info:</strong><br>
-                    Game Server: localhost:43595 (for RSPS clients)<br>
-                    RL API Server: localhost:43594 (for training/evaluation)
+                    - Game Server Port: <strong>43595</strong> (for game clients)<br>
+                    - RL Communication Port: <strong>43594</strong> (for the training script)
                 </div>
             </div>
             <div class="section">
                 <h3>Simulation Logs</h3>
-                <div id="simulation-logs" class="logs"></div>
+                <div id="simulation-logs" class="logs">Waiting for simulation to start...</div>
             </div>
         </div>
     </div>
@@ -337,17 +383,31 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
                 const status = await apiCall('status');
                 
                 // Update process statuses
-                updateProcessStatus('training', status.processes.training);
-                updateProcessStatus('evaluation', status.processes.evaluation);
-                updateProcessStatus('api', status.processes.api);
-                updateProcessStatus('simulation', status.processes.simulation);
-                updateProcessStatus('tensorboard', status.processes.tensorboard);
+                for (const [name, processStatus] of Object.entries(status.processes)) {
+                    updateProcessStatus(name, processStatus);
+                    if (processStatus.running) {
+                        updateLogs(name);
+                    }
+                }
                 
                 // Update system metrics
                 document.getElementById('system-metrics').textContent = status.system_metrics || 'Metrics unavailable';
                 
             } catch (error) {
                 console.error('Failed to update status:', error);
+            }
+        }
+
+        async function updateLogs(processName) {
+            try {
+                const logData = await apiCall(`logs/${processName}`);
+                const logElement = document.getElementById(`${processName}-logs`);
+                if (logElement) {
+                    logElement.textContent = logData.logs;
+                    logElement.scrollTop = logElement.scrollHeight; // Auto-scroll
+                }
+            } catch (error) {
+                console.error(`Failed to update logs for ${processName}:`, error);
             }
         }
 
@@ -386,12 +446,42 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
         }
 
         async function checkEnvironment() {
-            // This would trigger environment check on the backend
-            console.log('Checking environment...');
+            const statusGrid = document.getElementById('status-grid');
+            const statuses = ['conda', 'python', 'java', 'simulation'];
+
+            statuses.forEach(id => {
+                const item = document.getElementById(`${id}-status`);
+                const text = document.getElementById(`${id}-status-text`);
+                item.classList.remove('error', 'warning');
+                text.textContent = 'Checking...';
+            });
+
+            try {
+                const result = await apiCall('check_environment');
+
+                for (const [key, value] of Object.entries(result)) {
+                    const item = document.getElementById(`${key}-status`);
+                    const text = document.getElementById(`${key}-status-text`);
+
+                    text.textContent = value.message;
+                    if (value.status === 'Error') {
+                        item.classList.add('error');
+                    } else if (value.status === 'Warning') {
+                        item.classList.add('warning');
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to check environment:", error);
+                statuses.forEach(id => {
+                    const text = document.getElementById(`${id}-status-text`);
+                    text.textContent = 'Failed to check.';
+                });
+            }
         }
 
         function openSetupGuide() {
-            window.open('/SETUP_GUIDE.md', '_blank');
+            // This is handled by the backend, but we can provide a fallback
+            window.open('SETUP_GUIDE.md', '_blank');
         }
 
         async function startTraining() {
@@ -505,7 +595,8 @@ class WebGUIHandler(SimpleHTTPRequestHandler):
             loadPresets();
             loadModels();
             updateStatus();
-            statusUpdateInterval = setInterval(updateStatus, 5000);
+            checkEnvironment(); // Initial check
+            statusUpdateInterval = setInterval(updateStatus, 3000); // More frequent updates
         });
     </script>
 </body>
@@ -527,7 +618,21 @@ class OSRSWebGUI:
         
         # Process tracking
         self.processes: Dict[str, subprocess.Popen] = {}
+        self.log_queues: Dict[str, List[str]] = {}
+        self.log_threads: Dict[str, threading.Thread] = {}
         
+    def log_reader(self, process_name, stream):
+        """Read process output and add to log queue."""
+        if process_name not in self.log_queues:
+            self.log_queues[process_name] = []
+
+        for line in iter(stream.readline, ''):
+            self.log_queues[process_name].append(line.strip())
+            # Limit log size to prevent memory issues
+            if len(self.log_queues[process_name]) > 500:
+                self.log_queues[process_name].pop(0)
+        stream.close()
+
     def run_command(self, command: List[str], cwd: Optional[Path] = None, env_vars: Optional[Dict] = None) -> subprocess.Popen:
         """Run a command in the conda environment."""
         # Use conda environment if available
@@ -540,14 +645,28 @@ class OSRSWebGUI:
         if env_vars:
             env.update(env_vars)
             
-        return subprocess.Popen(
+        process = subprocess.Popen(
             conda_cmd,
             cwd=cwd or self.project_root,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            bufsize=1,
+            universal_newlines=True,
             env=env
         )
+
+        # Start log reader threads
+        process_name = command[0]
+
+        stdout_thread = threading.Thread(target=self.log_reader, args=(process_name, process.stdout), daemon=True)
+        stderr_thread = threading.Thread(target=self.log_reader, args=(process_name, process.stderr), daemon=True)
+        stdout_thread.start()
+        stderr_thread.start()
+
+        self.log_threads[process_name] = (stdout_thread, stderr_thread)
+
+        return process
     
     def get_status(self):
         """Get current system status."""
@@ -599,15 +718,58 @@ class OSRSWebGUI:
     
     def get_logs(self, log_type):
         """Get logs for a specific process."""
-        if log_type in self.processes:
-            process = self.processes[log_type]
-            try:
-                stdout, stderr = process.communicate(timeout=0.1)
-                return f"{stdout}\n{stderr}".strip()
-            except subprocess.TimeoutExpired:
-                return "Process running..."
-        return "No logs available"
+        # This is a simplified log retrieval. A better implementation would stream logs.
+        logs = self.log_queues.get(log_type, [])
+        return {"logs": "\n".join(logs)}
     
+    def check_environment(self):
+        """Check the status of the environment."""
+        status = {}
+
+        # Check conda environment
+        try:
+            result = subprocess.run(
+                ["conda", "info", "--envs"],
+                capture_output=True, text=True, timeout=10, check=True
+            )
+            if str(self.conda_env_path) in result.stdout:
+                status['conda'] = {'status': 'OK', 'message': 'Conda environment found.'}
+            else:
+                status['conda'] = {'status': 'Error', 'message': 'Conda environment missing.'}
+        except Exception as e:
+            status['conda'] = {'status': 'Error', 'message': f"Conda check failed: {e}"}
+
+        # Check Python packages
+        try:
+            result = subprocess.run(
+                ["conda", "run", "-p", str(self.conda_env_path), "python", "-c", "import pvp_ml, torch, ray"],
+                capture_output=True, text=True, timeout=30, check=True
+            )
+            status['python'] = {'status': 'OK', 'message': 'Core Python packages are installed.'}
+        except Exception as e:
+            status['python'] = {'status': 'Error', 'message': 'Python package check failed.'}
+
+        # Check Java
+        try:
+            result = subprocess.run(
+                ["conda", "run", "-p", str(self.conda_env_path), "java", "--version"],
+                capture_output=True, text=True, timeout=10, check=True
+            )
+            if "17" in result.stdout:
+                status['java'] = {'status': 'OK', 'message': f"Java 17 found: {result.stdout.splitlines()[0]}"}
+            else:
+                status['java'] = {'status': 'Warning', 'message': 'Java version is not 17.'}
+        except Exception as e:
+            status['java'] = {'status': 'Error', 'message': f"Java check failed: {e}"}
+
+        # Check simulation server
+        if (self.simulation_dir / "gradlew").exists():
+            status['simulation'] = {'status': 'OK', 'message': 'Gradle wrapper found.'}
+        else:
+            status['simulation'] = {'status': 'Error', 'message': 'Simulation server (gradlew) not found.'}
+
+        return status
+
     def start_training(self, config):
         """Start a training job."""
         try:
